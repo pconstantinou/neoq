@@ -537,11 +537,20 @@ func (p *PgBackend) enqueueJob(ctx context.Context, tx pgx.Tx, j *jobs.Job) (job
 	if err != nil {
 		return
 	}
-
 	p.logger.Debug("adding job to the queue", slog.String("queue", j.Queue))
-	err = tx.QueryRow(ctx, `INSERT INTO neoq_jobs(queue, fingerprint, payload, run_after, deadline, max_retries)
+	if !j.Override {
+		err = tx.QueryRow(ctx, `INSERT INTO neoq_jobs(queue, fingerprint, payload, run_after, deadline, max_retries)
 		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		j.Queue, j.Fingerprint, j.Payload, j.RunAfter, j.Deadline, j.MaxRetries).Scan(&jobID)
+			j.Queue, j.Fingerprint, j.Payload, j.RunAfter, j.Deadline, j.MaxRetries).Scan(&jobID)
+
+	} else {
+		err = tx.QueryRow(ctx, `INSERT INTO neoq_jobs(queue, fingerprint, payload, run_after, deadline, max_retries)
+		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (fingerprint) SET 
+		queue = $1, payload=$3, run_after=$4, deadline=$5, max_retries=$6		
+		RETURNING id`,
+			j.Queue, j.Fingerprint, j.Payload, j.RunAfter, j.Deadline, j.MaxRetries).Scan(&jobID)
+	}
+
 	if err != nil {
 		err = fmt.Errorf("unable add job to queue: %w", err)
 		return
