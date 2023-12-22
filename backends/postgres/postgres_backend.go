@@ -546,7 +546,7 @@ func (p *PgBackend) enqueueJob(ctx context.Context, tx pgx.Tx, j *jobs.Job) (job
 	} else {
 		err = tx.QueryRow(ctx, `INSERT INTO neoq_jobs(queue, fingerprint, payload, run_after, deadline, max_retries)
 		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (fingerprint) SET 
-		queue = $1, payload=$3, run_after=$4, deadline=$5, max_retries=$6		
+		payload=$3, run_after=$4, deadline=$5, max_retries=$6		
 		RETURNING id`,
 			j.Queue, j.Fingerprint, j.Payload, j.RunAfter, j.Deadline, j.MaxRetries).Scan(&jobID)
 	}

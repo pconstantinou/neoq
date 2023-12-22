@@ -102,7 +102,7 @@ func (m *MemBackend) Enqueue(ctx context.Context, job *jobs.Job) (jobID string, 
 	}
 
 	// if the job fingerprint is already known, don't queue the job
-	if _, found := m.fingerprints.Load(job.Fingerprint); found && job.Override {
+	if _, found := m.fingerprints.Load(job.Fingerprint); found && !job.Override {
 		return jobs.DuplicateJobID, nil
 	} else {
 		m.fingerprints.Store(job.Fingerprint, job)
