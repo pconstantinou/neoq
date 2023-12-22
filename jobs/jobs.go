@@ -45,7 +45,6 @@ type Job struct {
 	Retries     int            `db:"retries"`     // The number of times the job has retried
 	MaxRetries  *int           `db:"max_retries"` // The maximum number of times the job can retry
 	CreatedAt   time.Time      `db:"created_at"`  // The time the job was created
-	Override    bool           // If a matching Fingerprint should replace the existing one resetting the retrues and created at
 }
 
 // FingerprintJob fingerprints jobs as an md5 hash of its queue combined with its JSON-serialized payload

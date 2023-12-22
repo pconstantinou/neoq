@@ -179,7 +179,12 @@ func WithShutdownTimeout(timeout time.Duration) neoq.ConfigOption {
 }
 
 // Enqueue queues jobs to be executed asynchronously
-func (b *RedisBackend) Enqueue(ctx context.Context, job *jobs.Job) (jobID string, err error) {
+func (b *RedisBackend) Enqueue(ctx context.Context, job *jobs.Job, jobOptions ...neoq.JobOption) (jobID string, err error) {
+	options := neoq.JobOptions{}
+	for _, opt := range jobOptions {
+		opt(&options)
+	}
+
 	if job.Queue == "" {
 		err = jobs.ErrNoQueueSpecified
 		return

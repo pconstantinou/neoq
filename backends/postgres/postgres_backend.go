@@ -366,7 +366,11 @@ func (p *PgBackend) initializeDB() (err error) {
 }
 
 // Enqueue adds jobs to the specified queue
-func (p *PgBackend) Enqueue(ctx context.Context, job *jobs.Job) (jobID string, err error) {
+func (p *PgBackend) Enqueue(ctx context.Context, job *jobs.Job, jobOptions ...neoq.JobOption) (jobID string, err error) {
+	options := neoq.JobOptions{}
+	for _, opt := range jobOptions {
+		opt(&options)
+	}
 	if job.Queue == "" {
 		err = jobs.ErrNoQueueSpecified
 		return
@@ -392,7 +396,7 @@ func (p *PgBackend) Enqueue(ctx context.Context, job *jobs.Job) (jobID string, e
 	// Rollback is safe to call even if the tx is already closed, so if
 	// the tx commits successfully, this is a no-op
 	defer func(ctx context.Context) { _ = tx.Rollback(ctx) }(ctx) // rollback has no effect if the transaction has been committed
-	jobID, err = p.enqueueJob(ctx, tx, job)
+	jobID, err = p.enqueueJob(ctx, tx, job, options)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -532,17 +536,16 @@ func (p *PgBackend) Shutdown(ctx context.Context) {
 //
 // Jobs that are not already fingerprinted are fingerprinted before being added
 // Duplicate jobs are not added to the queue. Any two unprocessed jobs with the same fingerprint are duplicates
-func (p *PgBackend) enqueueJob(ctx context.Context, tx pgx.Tx, j *jobs.Job) (jobID string, err error) {
+func (p *PgBackend) enqueueJob(ctx context.Context, tx pgx.Tx, j *jobs.Job, options neoq.JobOptions) (jobID string, err error) {
 	err = jobs.FingerprintJob(j)
 	if err != nil {
 		return
 	}
 	p.logger.Debug("adding job to the queue", slog.String("queue", j.Queue))
-	if !j.Override {
+	if !options.Override {
 		err = tx.QueryRow(ctx, `INSERT INTO neoq_jobs(queue, fingerprint, payload, run_after, deadline, max_retries)
 		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
 			j.Queue, j.Fingerprint, j.Payload, j.RunAfter, j.Deadline, j.MaxRetries).Scan(&jobID)
-
 	} else {
 		err = tx.QueryRow(ctx, `INSERT INTO neoq_jobs(queue, fingerprint, payload, run_after, deadline, max_retries)
 		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (fingerprint) SET 

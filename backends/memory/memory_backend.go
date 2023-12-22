@@ -67,7 +67,12 @@ func Backend(_ context.Context, opts ...neoq.ConfigOption) (backend neoq.Neoq, e
 }
 
 // Enqueue queues jobs to be executed asynchronously
-func (m *MemBackend) Enqueue(ctx context.Context, job *jobs.Job) (jobID string, err error) {
+func (m *MemBackend) Enqueue(ctx context.Context, job *jobs.Job, jobOptions ...neoq.JobOption) (jobID string, err error) {
+	options := neoq.JobOptions{}
+	for _, opt := range jobOptions {
+		opt(&options)
+	}
+
 	var queueChan chan *jobs.Job
 	var qc any
 	var ok bool
@@ -102,7 +107,7 @@ func (m *MemBackend) Enqueue(ctx context.Context, job *jobs.Job) (jobID string, 
 	}
 
 	// if the job fingerprint is already known, don't queue the job
-	if _, found := m.fingerprints.Load(job.Fingerprint); found && !job.Override {
+	if _, found := m.fingerprints.Load(job.Fingerprint); found && !options.Override {
 		return jobs.DuplicateJobID, nil
 	} else {
 		m.fingerprints.Store(job.Fingerprint, job)
