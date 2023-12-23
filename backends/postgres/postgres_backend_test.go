@@ -24,6 +24,8 @@ import (
 
 const (
 	ConcurrentWorkers = 8
+	queue1            = "queue1"
+	queue2            = "queue2"
 )
 
 var errPeriodicTimeout = errors.New("timed out waiting for periodic job")
@@ -245,7 +247,7 @@ func TestDuplicateJobRejection(t *testing.T) {
 	})
 
 	// we submitted two duplicate jobs; the error should be a duplicate job error
-	if !errors.Is(e2, postgres.ErrDuplicateJob) {
+	if !errors.Is(e2, jobs.ErrJobFingerprintConflict) {
 		err = e2
 	}
 
@@ -773,5 +775,109 @@ func Test_ConnectionTimeout(t *testing.T) {
 
 	if !errors.Is(err, postgres.ErrExceededConnectionPoolTimeout) {
 		t.Error(err)
+	}
+}
+
+func TestFutureJobSchedulingOverride(t *testing.T) {
+	connString, _ := prepareAndCleanupDB(t)
+
+	ctx := context.TODO()
+	nq, err := neoq.New(ctx, neoq.WithBackend(postgres.Backend), postgres.WithConnectionString(connString))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nq.Shutdown(ctx)
+
+	jobsToDo := 3
+	jobsProcessed := 0
+
+	fingerPrints := make(map[string]int)
+
+	done1 := make(chan bool)
+
+	h1 := handler.New(queue1, func(ctx context.Context) (err error) {
+		var j *jobs.Job
+		j, err = jobs.FromContext(ctx)
+		if err != nil {
+			return
+		}
+		if j == nil {
+			return
+		}
+		fingerPrints[j.Fingerprint]++
+		jobsProcessed++
+		t.Logf("Handled job %d with fingerprint %s and ID %d Payload: %s", jobsProcessed, j.Fingerprint, j.ID, j.Payload["message"])
+		if jobsToDo == jobsProcessed {
+			done1 <- true
+		}
+		return
+	})
+
+	if err := nq.Start(ctx, h1); err != nil {
+		t.Fatal(err)
+	}
+
+	fingerprint1 := "fingerprint1" + time.Now().String()
+	fingerprint2 := "fingerprint2" + time.Now().String()
+
+	go func() {
+		_, err = nq.Enqueue(ctx, &jobs.Job{
+			Queue:       queue1,
+			Payload:     map[string]interface{}{"message": "first queued item - should be overwritten"},
+			RunAfter:    time.Now().Add(5 * time.Millisecond),
+			Fingerprint: fingerprint1,
+		})
+		if err != nil {
+			err = fmt.Errorf("job was not enqueued.%w", err)
+			t.Error(err)
+		}
+		_, err = nq.Enqueue(ctx, &jobs.Job{
+			Queue:       queue1,
+			Payload:     map[string]interface{}{"message": "should not be queued"},
+			RunAfter:    time.Now().Add(time.Second),
+			Fingerprint: fingerprint1,
+		})
+		if !errors.Is(err, jobs.ErrJobFingerprintConflict) {
+			t.Errorf("Should have returned a [%v] but returned [%v]", jobs.ErrJobFingerprintConflict, err)
+		}
+		_, err = nq.Enqueue(ctx, &jobs.Job{
+			Queue:       queue1,
+			Payload:     map[string]interface{}{"message": "the item that overwrites"},
+			RunAfter:    time.Now().Add(time.Second),
+			Fingerprint: fingerprint1,
+		}, neoq.WithOverrideMatchingFingerprint())
+		if err != nil {
+			t.Errorf("Should have returned nil but returned %v", err)
+		}
+
+		_, err = nq.Enqueue(ctx, &jobs.Job{
+			Queue:       queue1,
+			Payload:     map[string]interface{}{"message": "the new item"},
+			RunAfter:    time.Now().Add(time.Second),
+			Fingerprint: fingerprint2,
+		})
+		if err != nil {
+			err = fmt.Errorf("job was not enqueued.%w", err)
+			t.Error(err)
+		}
+	}()
+
+	timeoutTimer := time.After(10 * time.Second)
+results_loop:
+	for {
+		select {
+		case <-timeoutTimer:
+			err = jobs.ErrJobTimeout
+			break results_loop
+		case <-done1:
+			break results_loop
+		}
+	}
+	if err != nil {
+		t.Error(err)
+	}
+	if fingerPrints[fingerprint1] != 1 || fingerPrints[fingerprint2] != 1 {
+		// nolint: goerr113
+		t.Error(fmt.Errorf("handler1 should have handled %d jobs, but handled %d. %v", jobsToDo, jobsProcessed, fingerPrints))
 	}
 }

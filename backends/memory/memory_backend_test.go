@@ -22,7 +22,9 @@ import (
 )
 
 const (
-	queue = "testing"
+	queue  = "testing"
+	queue1 = "queue1"
+	queue2 = "queue2"
 )
 
 var (
@@ -231,20 +233,17 @@ func TestFutureJobSchedulingMultipleQueues(t *testing.T) {
 	jobsProcessed1 := 0
 	jobsProcessed2 := 0
 
-	q1 := "queue1"
-	q2 := "queue2"
-
 	done1 := make(chan bool)
 	done2 := make(chan bool)
 
-	h1 := handler.New(q1, func(ctx context.Context) (err error) {
+	h1 := handler.New(queue1, func(ctx context.Context) (err error) {
 		var j *jobs.Job
 		j, err = jobs.FromContext(ctx)
 		if err != nil {
 			return
 		}
 
-		if j.Queue != q1 {
+		if j.Queue != queue1 {
 			err = errors.New("handling job from queu2 with queue1 handler. this is a bug")
 		}
 
@@ -252,14 +251,14 @@ func TestFutureJobSchedulingMultipleQueues(t *testing.T) {
 		return
 	})
 
-	h2 := handler.New(q2, func(ctx context.Context) (err error) {
+	h2 := handler.New(queue2, func(ctx context.Context) (err error) {
 		var j *jobs.Job
 		j, err = jobs.FromContext(ctx)
 		if err != nil {
 			return
 		}
 
-		if j.Queue != q2 {
+		if j.Queue != queue2 {
 			err = errors.New("handling job from queue1 with queue2 handler. this is a bug")
 		}
 
@@ -279,7 +278,7 @@ func TestFutureJobSchedulingMultipleQueues(t *testing.T) {
 		for i := 1; i <= jobsPerQueueCount; i++ {
 			_, err = nq.Enqueue(ctx, &jobs.Job{
 				ID:       int64(i),
-				Queue:    q1,
+				Queue:    queue1,
 				Payload:  map[string]interface{}{"ID": i},
 				RunAfter: time.Now().Add(1 * time.Millisecond),
 			})
@@ -292,7 +291,7 @@ func TestFutureJobSchedulingMultipleQueues(t *testing.T) {
 		for j := 1; j <= jobsPerQueueCount; j++ {
 			_, err = nq.Enqueue(ctx, &jobs.Job{
 				ID:       int64(j),
-				Queue:    q2,
+				Queue:    queue2,
 				Payload:  map[string]interface{}{"ID": j},
 				RunAfter: time.Now().Add(1 * time.Millisecond),
 			})
@@ -425,5 +424,109 @@ result_loop:
 
 	if err != nil {
 		t.Error(err)
+	}
+}
+
+var errNilJob = errors.New("Nil job")
+
+func TestFutureJobSchedulingOverride(t *testing.T) {
+	ctx := context.Background()
+	nq, err := neoq.New(ctx, neoq.WithBackend(memory.Backend))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nq.Shutdown(ctx)
+
+	jobsToDo := 3
+	jobsProcessed := 0
+
+	fingerPrints := make(map[string]int)
+
+	done1 := make(chan bool)
+
+	h1 := handler.New(queue1, func(ctx context.Context) (err error) {
+		var j *jobs.Job
+		j, err = jobs.FromContext(ctx)
+		if err != nil {
+			return
+		}
+		if j == nil {
+			return
+		}
+		fingerPrints[j.Fingerprint]++
+		jobsProcessed++
+		t.Logf("Handled job %d with fingerprint %s and ID %d Payload: %s", jobsProcessed, j.Fingerprint, j.ID, j.Payload["message"])
+		if jobsToDo == jobsProcessed {
+			done1 <- true
+		}
+		return
+	})
+
+	if err := nq.Start(ctx, h1); err != nil {
+		t.Fatal(err)
+	}
+
+	fingerprint1 := "fingerprint1" + time.Now().String()
+	fingerprint2 := "fingerprint2" + time.Now().String()
+
+	go func() {
+		_, err = nq.Enqueue(ctx, &jobs.Job{
+			Queue:       queue1,
+			Payload:     map[string]interface{}{"message": "first queued item - should be overwritten"},
+			RunAfter:    time.Now().Add(5 * time.Millisecond),
+			Fingerprint: fingerprint1,
+		})
+		if err != nil {
+			err = fmt.Errorf("job was not enqueued.%w", err)
+			t.Error(err)
+		}
+		_, err = nq.Enqueue(ctx, &jobs.Job{
+			Queue:       queue1,
+			Payload:     map[string]interface{}{"message": "should not be queued"},
+			RunAfter:    time.Now().Add(time.Second),
+			Fingerprint: fingerprint1,
+		})
+		if !errors.Is(err, jobs.ErrJobFingerprintConflict) {
+			t.Errorf("Should have returned a [%v] but returned [%v]", jobs.ErrJobFingerprintConflict, err)
+		}
+		_, err = nq.Enqueue(ctx, &jobs.Job{
+			Queue:       queue1,
+			Payload:     map[string]interface{}{"message": "the item that overwrites"},
+			RunAfter:    time.Now().Add(time.Second),
+			Fingerprint: fingerprint1,
+		}, neoq.WithOverrideMatchingFingerprint())
+		if err != nil {
+			t.Errorf("Should have returned nil but returned %v", err)
+		}
+
+		_, err = nq.Enqueue(ctx, &jobs.Job{
+			Queue:       queue1,
+			Payload:     map[string]interface{}{"message": "the new item"},
+			RunAfter:    time.Now().Add(time.Second),
+			Fingerprint: fingerprint2,
+		})
+		if err != nil {
+			err = fmt.Errorf("job was not enqueued.%w", err)
+			t.Error(err)
+		}
+	}()
+
+	timeoutTimer := time.After(10 * time.Second)
+results_loop:
+	for {
+		select {
+		case <-timeoutTimer:
+			err = jobs.ErrJobTimeout
+			break results_loop
+		case <-done1:
+			break results_loop
+		}
+	}
+	if err != nil {
+		t.Error(err)
+	}
+	if fingerPrints[fingerprint1] != 1 || fingerPrints[fingerprint2] != 1 {
+		// nolint: goerr113
+		t.Error(fmt.Errorf("handler1 should have handled %d jobs, but handled %d. %v", jobsToDo, jobsProcessed, fingerPrints))
 	}
 }
