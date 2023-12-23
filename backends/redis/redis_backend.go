@@ -192,6 +192,7 @@ func (b *RedisBackend) Enqueue(ctx context.Context, job *jobs.Job, jobOptions ..
 
 	err = jobs.FingerprintJob(job)
 	if err != nil {
+		err = errors.Join(jobs.ErrCantGenerateFingerprint, err)
 		return
 	}
 

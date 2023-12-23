@@ -539,7 +539,7 @@ func (p *PgBackend) Shutdown(ctx context.Context) {
 func (p *PgBackend) enqueueJob(ctx context.Context, tx pgx.Tx, j *jobs.Job, options neoq.JobOptions) (jobID string, err error) {
 	err = jobs.FingerprintJob(j)
 	if err != nil {
-		return
+		return jobID, errors.Join(jobs.ErrCantGenerateFingerprint, err)
 	}
 	p.logger.Debug("adding job to the queue", slog.String("queue", j.Queue))
 	if !options.Override {

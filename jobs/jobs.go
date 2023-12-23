@@ -14,11 +14,12 @@ import (
 )
 
 var (
-	ErrContextHasNoJob       = errors.New("context has no Job")
-	ErrJobTimeout            = errors.New("timed out waiting for job(s)")
-	ErrNoQueueSpecified      = errors.New("this job does not specify a queue. please specify a queue")
-	ErrJobExceededDeadline   = errors.New("the job did not complete before its deadline")
-	ErrJobExceededMaxRetries = errors.New("the job has exceeded the maximum number of retries")
+	ErrContextHasNoJob         = errors.New("context has no Job")
+	ErrJobTimeout              = errors.New("timed out waiting for job(s)")
+	ErrNoQueueSpecified        = errors.New("this job does not specify a queue. please specify a queue")
+	ErrJobExceededDeadline     = errors.New("the job did not complete before its deadline")
+	ErrJobExceededMaxRetries   = errors.New("the job has exceeded the maximum number of retries")
+	ErrCantGenerateFingerprint = errors.New("a fingerprint can't be generated from the payload of the job")
 )
 
 const (
