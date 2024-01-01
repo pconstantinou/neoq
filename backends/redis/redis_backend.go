@@ -201,6 +201,12 @@ func (b *RedisBackend) Enqueue(ctx context.Context, job *jobs.Job, jobOptions ..
 	if err != nil {
 		return
 	}
+	if options.Override {
+		err = b.inspector.DeleteTask(job.Queue, job.Fingerprint)
+		if errors.Is(err, asynq.ErrTaskNotFound) {
+			b.logger.Debug("Overriding a task that does not exists queue:[%s] Fingerprint: [%s]", job.Queue, job.Fingerprint)
+		}
+	}
 	task := asynq.NewTask(job.Queue, payload)
 	_, err = b.client.EnqueueContext(ctx, task, jobToTaskOptions(job)...)
 	if err != nil {
