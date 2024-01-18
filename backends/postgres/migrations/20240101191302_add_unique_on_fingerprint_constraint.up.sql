@@ -1,1 +1,4 @@
-ALTER TABLE neoq_jobs ADD CONSTRAINT neoq_jobs_fingerprint_constraint_idx UNIQUE (queue, fingerprint, status, ran_at);
+DROP INDEX IF EXISTS neoq_jobs_fingerprint_idx;
+DROP INDEX IF EXISTS neoq_jobs_fingerprint_unique_idx;
+
+CREATE UNIQUE INDEX IF NOT EXISTS neoq_jobs_fingerprint_unique_idx ON neoq_jobs (queue, status, fingerprint, ran_at);

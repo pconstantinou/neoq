@@ -777,8 +777,7 @@ func Test_ConnectionTimeout(t *testing.T) {
 		t.Error(err)
 	}
 }
-
-func TestFutureJobSchedulingOverride(t *testing.T) {
+func setup(t *testing.T) (neoq.Neoq, context.Context) {
 	connString, _ := prepareAndCleanupDB(t)
 
 	ctx := context.TODO()
@@ -786,6 +785,10 @@ func TestFutureJobSchedulingOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer nq.Shutdown(ctx)
-	backends.TestOverrideFingerprint(t, ctx, nq)
+	return nq, ctx
+}
+
+func TestSuite(t *testing.T) {
+	n, _ := setup(t)
+	backends.NewNeoQTestSuite(n).Run(t)
 }

@@ -428,13 +428,11 @@ result_loop:
 	}
 }
 
-func TestFutureJobSchedulingOverride(t *testing.T) {
+func TestSuite(t *testing.T) {
 	ctx := context.Background()
-	nq, err := neoq.New(ctx, neoq.WithBackend(memory.Backend))
+	n, err := neoq.New(ctx, neoq.WithBackend(memory.Backend), neoq.WithLogLevel(logging.LogLevelDebug))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer nq.Shutdown(ctx)
-
-	backends.TestOverrideFingerprint(t, ctx, nq)
+	backends.NewNeoQTestSuite(n).Run(t)
 }

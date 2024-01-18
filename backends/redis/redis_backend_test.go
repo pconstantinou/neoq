@@ -443,7 +443,7 @@ result_loop:
 	}
 }
 
-func TestFutureJobSchedulingOverride(t *testing.T) {
+func TestSuite(t *testing.T) {
 	connString := os.Getenv("TEST_REDIS_URL")
 	if connString == "" {
 		t.Skip("Skipping: TEST_REDIS_URL not set")
@@ -461,6 +461,6 @@ func TestFutureJobSchedulingOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer nq.Shutdown(ctx)
-	backends.TestOverrideFingerprint(t, ctx, nq)
+
+	backends.NewNeoQTestSuite(nq).Run(t)
 }

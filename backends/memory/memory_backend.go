@@ -112,15 +112,23 @@ func (m *MemBackend) Enqueue(ctx context.Context, job *jobs.Job, jobOptions ...n
 		if !options.Override {
 			return jobs.DuplicateJobID, jobs.ErrJobFingerprintConflict
 		}
+		oldJob, found := m.fingerprints.Swap(job.Fingerprint, job)
+		if found {
+			// Return the same JobID to make it the same as posgres
+			job.ID = oldJob.(*jobs.Job).ID
+		} else {
+			m.logger.Info("Expected to get job but none was returned for fingerprint %s", job.Fingerprint)
+		}
+		jobID = fmt.Sprint(job.ID)
+
+	} else {
+		m.fingerprints.Store(job.Fingerprint, job)
+		m.mu.Lock()
+		m.jobCount++
+		m.mu.Unlock()
+		job.ID = m.jobCount
+		jobID = fmt.Sprint(m.jobCount)
 	}
-	m.fingerprints.Store(job.Fingerprint, job)
-
-	m.mu.Lock()
-	m.jobCount++
-	m.mu.Unlock()
-
-	job.ID = m.jobCount
-	jobID = fmt.Sprint(m.jobCount)
 
 	if job.RunAfter.Equal(now) {
 		queueChan <- job
