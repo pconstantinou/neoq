@@ -337,10 +337,13 @@ func (p *PgBackend) initializeDB() (err error) {
 		return
 	}
 
-	sslMode := "verify-ca"
 	// nil TLSConfig means "sslmode=disable" was set on the connection
+	sslMode := "verify-ca"
 	if pgxCfg.TLSConfig == nil {
 		sslMode = "disable"
+	}
+	if mode, ok := pgxCfg.RuntimeParams["sslmode"]; ok && mode != "" {
+		sslMode = mode
 	}
 
 	pqConnectionString := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s&x-migrations-table=neoq_schema_migrations",
