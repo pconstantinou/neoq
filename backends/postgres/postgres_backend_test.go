@@ -28,6 +28,10 @@ const (
 	queue1            = "queue1"
 )
 
+func init() {
+	os.Setenv("TEST_DATABASE_URL", "postgres://postgres:postgres@localhost:5432/neoq?sslmode=require&pool_max_conns=100")
+}
+
 var errPeriodicTimeout = errors.New("timed out waiting for periodic job")
 
 // prepareAndCleanupDB should be run at the beginning of each test. It will check to see if the TEST_DATABASE_URL is

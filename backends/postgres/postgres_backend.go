@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -342,8 +343,12 @@ func (p *PgBackend) initializeDB() (err error) {
 	if pgxCfg.TLSConfig == nil {
 		sslMode = "disable"
 	}
-	if mode, ok := pgxCfg.RuntimeParams["sslmode"]; ok && mode != "" {
-		sslMode = mode
+	if dbURL, err := url.Parse(pgxCfg.ConnString()); err == nil &&
+		strings.HasPrefix(dbURL.Scheme, "postgres") {
+		val := dbURL.Query()
+		if v := val.Get("sslmode"); v != "" {
+			sslMode = v
+		}
 	}
 
 	pqConnectionString := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s&x-migrations-table=neoq_schema_migrations",
