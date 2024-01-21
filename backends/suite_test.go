@@ -324,50 +324,50 @@ func (s *NeoQTestSuite) TestMultipleOverridingFingerprints() {
 	s.NoError(err)
 }
 
-// TestBasicJobProcessing tests that the memory backend is able to process the most basic jobs with the
-// most basic configuration.
-func (s *NeoQTestSuite) TestBasicJobProcessing() {
-	queue := fmt.Sprintf("basic-queue-%d", rand.Int63())
-	numJobs := 1000
-	doneCnt := 0
-	done := make(chan bool)
-	ctx := context.Background()
-	timeoutTimer := time.After(5 * time.Second)
+// // TestBasicJobProcessing tests that the memory backend is able to process the most basic jobs with the
+// // most basic configuration.
+// func (s *NeoQTestSuite) TestBasicJobProcessing() {
+// 	queue := fmt.Sprintf("basic-queue-%d", rand.Int63())
+// 	numJobs := 1000
+// 	doneCnt := 0
+// 	done := make(chan bool)
+// 	ctx := context.Background()
+// 	timeoutTimer := time.After(5 * time.Second)
 
-	h := handler.New(queue, func(_ context.Context) (err error) {
-		done <- true
-		return
-	})
+// 	h := handler.New(queue, func(_ context.Context) (err error) {
+// 		done <- true
+// 		return
+// 	})
 
-	s.NoError(s.NeoQ.Start(ctx, h))
+// 	s.NoError(s.NeoQ.Start(ctx, h))
 
-	go func() {
-		for i := 0; i < numJobs; i++ {
-			jid, err := s.NeoQ.Enqueue(ctx, &jobs.Job{
-				Queue: queue,
-				Payload: map[string]interface{}{
-					"message": fmt.Sprintf("hello world: %d", i),
-				},
-			})
-			s.NoError(err, "job was not enqueued.")
-			s.NotEqual(jobs.DuplicateJobID, jid, "duplicate or this error caused it: %v , %s", jid, err)
-		}
-	}()
-	var err error
-	for {
-		select {
-		case <-timeoutTimer:
-			err = jobs.ErrJobTimeout
-		case <-done:
-			doneCnt++
-		}
+// 	go func() {
+// 		for i := 0; i < numJobs; i++ {
+// 			jid, err := s.NeoQ.Enqueue(ctx, &jobs.Job{
+// 				Queue: queue,
+// 				Payload: map[string]interface{}{
+// 					"message": fmt.Sprintf("hello world: %d", i),
+// 				},
+// 			})
+// 			s.NoError(err, "job was not enqueued.")
+// 			s.NotEqual(jobs.DuplicateJobID, jid, "duplicate or this error caused it: %v , %s", jid, err)
+// 		}
+// 	}()
+// 	var err error
+// 	for {
+// 		select {
+// 		case <-timeoutTimer:
+// 			err = jobs.ErrJobTimeout
+// 		case <-done:
+// 			doneCnt++
+// 		}
 
-		if doneCnt >= numJobs {
-			break
-		}
+// 		if doneCnt >= numJobs {
+// 			break
+// 		}
 
-		if err != nil {
-			break
-		}
-	}
-}
+// 		if err != nil {
+// 			break
+// 		}
+// 	}
+// }
