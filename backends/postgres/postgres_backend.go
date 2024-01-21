@@ -342,12 +342,14 @@ func (p *PgBackend) initializeDB() (err error) {
 	sslMode := "verify-ca"
 	if pgxCfg.TLSConfig == nil {
 		sslMode = "disable"
+	} else if pgxCfg.TLSConfig.InsecureSkipVerify {
+		sslMode = "require"
 	}
 	if dbURL, err := url.Parse(pgxCfg.ConnString()); err == nil &&
 		strings.HasPrefix(dbURL.Scheme, "postgres") {
 		val := dbURL.Query()
 		if v := val.Get("sslmode"); v != "" {
-			sslMode = v
+			sslMode = v // set sslmode from existing connection string
 		}
 	}
 
@@ -359,7 +361,13 @@ func (p *PgBackend) initializeDB() (err error) {
 		sslMode)
 	m, err := migrate.NewWithSourceInstance("iofs", migrations, pqConnectionString)
 	if err != nil {
-		p.logger.Error("unable to run migrations", slog.Any("error", err))
+		pqConnectionString = fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s&x-migrations-table=neoq_schema_migrations",
+			pgxCfg.User,
+			"*******",
+			pgxCfg.Host,
+			pgxCfg.Database,
+			sslMode)
+		p.logger.Error("unable to run migrations", slog.Any("error", err), slog.Any("url", pqConnectionString))
 		return
 	}
 	// We don't need the migration tooling to hold it's connections to the DB once it has been completed.
