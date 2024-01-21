@@ -2,7 +2,7 @@
 
 Queue-agnostic background job library for Go, with a pleasant API and powerful features.
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/acaloiaro/neoq.svg)](https://pkg.go.dev/github.com/acaloiaro/neoq) [![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://app.gitter.im/#/room/#neoq:gitter.im)
+[![Go Reference](https://pkg.go.dev/badge/github.com/acaloiaro/neoq.svg)](https://pkg.go.dev/github.com/acaloiaro/neoq) [Matrix Chat <img src="https://img.shields.io/matrix/neoq%3Amatrix.org">](https://matrix.to/#/%23neoq:matrix.org)
 
 # Getting Started 
 
