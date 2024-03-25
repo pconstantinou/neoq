@@ -940,6 +940,9 @@ func (p *PgBackend) handleJob(ctx context.Context, jobID string) (err error) {
 		err = jobs.ErrJobExceededDeadline
 		p.logger.Debug("job deadline is in the past, skipping", slog.String("queue", job.Queue), slog.Int64("job_id", job.ID))
 		err = p.updateJob(ctx, err)
+		if err == nil {
+			err = tx.Commit(ctx)
+		}
 		return
 	}
 
